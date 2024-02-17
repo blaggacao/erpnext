@@ -140,12 +140,7 @@ class RepostItemValuation(Document):
 		return query[0][0] if query else None
 
 	def validate_accounts_freeze(self):
-		acc_settings = frappe.db.get_value(
-			"Accounts Settings",
-			"Accounts Settings",
-			["acc_frozen_upto", "frozen_accounts_modifier"],
-			as_dict=1,
-		)
+		acc_settings = frappe.get_cached_doc("Accounts Settings")
 		if not acc_settings.acc_frozen_upto:
 			return
 		if getdate(self.posting_date) <= getdate(acc_settings.acc_frozen_upto):
@@ -224,7 +219,7 @@ class RepostItemValuation(Document):
 
 		transaction_status = frappe.db.get_value(self.voucher_type, self.voucher_no, "docstatus")
 		if transaction_status == 2:
-			msg = _("Cannot cancel as processing of cancelled documents is  pending.")
+			msg = _("Cannot cancel as processing of cancelled documents is pending.")
 			msg += "<br>" + _("Please try again in an hour.")
 			frappe.throw(msg, title=_("Pending processing"))
 
@@ -286,6 +281,7 @@ def repost(doc):
 		repost_gl_entries(doc)
 
 		doc.set_status("Completed")
+		remove_attached_file(doc.name)
 
 	except Exception as e:
 		if frappe.flags.in_test:
@@ -312,6 +308,13 @@ def repost(doc):
 	finally:
 		if not frappe.flags.in_test:
 			frappe.db.commit()
+
+
+def remove_attached_file(docname):
+	if file_name := frappe.db.get_value(
+		"File", {"attached_to_name": docname, "attached_to_doctype": "Repost Item Valuation"}, "name"
+	):
+		frappe.delete_doc("File", file_name, delete_permanently=True)
 
 
 def repost_sl_entries(doc):

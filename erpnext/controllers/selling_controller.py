@@ -295,9 +295,6 @@ class SellingController(StockController):
 	def get_item_list(self):
 		il = []
 		for d in self.get("items"):
-			if d.qty is None:
-				frappe.throw(_("Row {0}: Qty is mandatory").format(d.idx))
-
 			if self.has_product_bundle(d.item_code):
 				for p in self.get("packed_items"):
 					if p.parent_detail_docname == d.name and p.parent_item == d.item_code:
@@ -432,6 +429,9 @@ class SellingController(StockController):
 
 		items = self.get("items") + (self.get("packed_items") or [])
 		for d in items:
+			if not frappe.get_cached_value("Item", d.item_code, "is_stock_item"):
+				continue
+
 			if not self.get("return_against") or (
 				get_valuation_method(d.item_code) == "Moving Average" and self.get("is_return")
 			):
@@ -599,7 +599,7 @@ class SellingController(StockController):
 		if self.doctype in ["Sales Order", "Quotation"]:
 			for item in self.items:
 				item.gross_profit = flt(
-					((item.base_rate - item.valuation_rate) * item.stock_qty), self.precision("amount", item)
+					((item.base_rate - flt(item.valuation_rate)) * item.stock_qty), self.precision("amount", item)
 				)
 
 	def set_customer_address(self):
